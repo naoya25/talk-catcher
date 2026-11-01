@@ -1,0 +1,6 @@
+.env
+.DS_Store
+.build/
+build/
+*.m4a
+Resources/silero_vad.onnx

@@ -1,0 +1,602 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>talk-catcher 体験 mock</title>
+<style>
+:root{
+  --bg:#fbfaf7; --fg:#1d1d1f; --muted:#6b6b70; --line:#d9d6cf; --card:#ffffff;
+  --accent:#d6331f; --accent-soft:#fbe4df; --ok:#1f7a4d; --ok-soft:#dcf1e5; --wait:#b07800; --wait-soft:#fbf1cc;
+  --menu:rgba(246,246,248,.92); --menu-fg:#1d1d1f; --menu-sel:#2f6fde; --bar:rgba(255,255,255,.55);
+  --wall1:#c9d8e8; --wall2:#e9dccb;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#16161a; --fg:#ececf0; --muted:#a0a0aa; --line:#3a3a42; --card:#1f1f25;
+    --accent:#ff6a55; --accent-soft:#40201c; --ok:#5fd39a; --ok-soft:#163626; --wait:#e8c547; --wait-soft:#3a3115;
+    --menu:rgba(40,40,46,.94); --menu-fg:#ececf0; --menu-sel:#3b78e7; --bar:rgba(30,30,36,.6);
+    --wall1:#26324a; --wall2:#3b2f2a;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#16161a; --fg:#ececf0; --muted:#a0a0aa; --line:#3a3a42; --card:#1f1f25;
+  --accent:#ff6a55; --accent-soft:#40201c; --ok:#5fd39a; --ok-soft:#163626; --wait:#e8c547; --wait-soft:#3a3115;
+  --menu:rgba(40,40,46,.94); --menu-fg:#ececf0; --menu-sel:#3b78e7; --bar:rgba(30,30,36,.6);
+  --wall1:#26324a; --wall2:#3b2f2a;
+}
+*{box-sizing:border-box}
+[hidden]{display:none !important}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:"Noto Sans JP","Hiragino Sans",system-ui,sans-serif;line-height:1.7;font-size:16px}
+main{max-width:1120px;margin:0 auto;padding:32px 16px 80px}
+h1{font-size:26px;line-height:1.4;margin:0 0 8px}
+.lead{color:var(--muted);margin:0 0 24px}
+h2{font-size:18px;margin:32px 0 10px}
+button{font:inherit;color:inherit;cursor:pointer}
+code,kbd,pre,textarea{font-family:ui-monospace,Menlo,monospace}
+
+.stage{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:16px;align-items:start}
+@media (max-width:860px){.stage{grid-template-columns:minmax(0,1fr)}}
+
+/* デスクトップ */
+.desktop{position:relative;height:520px;border-radius:12px;overflow:hidden;border:1px solid var(--line);
+  background:linear-gradient(135deg,var(--wall1),var(--wall2));font-size:13px;line-height:1.45}
+.menubar{position:absolute;inset:0 0 auto 0;height:26px;display:flex;justify-content:space-between;align-items:center;
+  padding:0 10px;background:var(--bar);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);color:var(--menu-fg);z-index:5}
+.mb-left,.mb-right{display:flex;gap:14px;align-items:center;white-space:nowrap}
+.mb-left .dot{width:12px;height:12px;border-radius:50%;background:var(--menu-fg);opacity:.75}
+@media (max-width:560px){.mb-left span:not(.dot){display:none}}
+.tc-icon{display:flex;align-items:center;gap:4px;height:22px;padding:0 6px;border:0;border-radius:5px;background:transparent;font-variant-numeric:tabular-nums;font-size:13px}
+.tc-icon[aria-expanded="true"],.tc-icon:hover{background:rgba(127,127,127,.25)}
+.tc-icon svg{width:16px;height:16px;display:block}
+.tc-icon .badge{width:7px;height:7px;border-radius:50%;background:var(--accent);margin-left:-6px;margin-top:-9px}
+.rec-c{color:var(--accent)} .wait-c{color:var(--wait)}
+
+.menu{position:absolute;top:30px;width:300px;padding:5px;border-radius:9px;background:var(--menu);color:var(--menu-fg);
+  backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);box-shadow:0 10px 30px rgba(0,0,0,.25);border:1px solid rgba(127,127,127,.25);z-index:20}
+.menu hr{border:0;border-top:1px solid rgba(127,127,127,.3);margin:5px 8px}
+.menu button,.menu .item{display:flex;justify-content:space-between;align-items:center;gap:8px;width:100%;padding:4px 10px;border:0;border-radius:5px;background:none;text-align:left}
+.menu button:hover{background:var(--menu-sel);color:#fff}
+.menu button:hover .sub{color:#fff}
+.menu kbd{font-size:12px;opacity:.6}
+.menu-status{padding:6px 10px 2px;font-weight:600}
+.menu-h{padding:2px 10px;font-size:12px;opacity:.6}
+.sub{font-size:12px;color:var(--muted)}
+.hist{display:block !important}
+.hist .top{display:flex;justify-content:space-between;gap:8px}
+.st-ok{color:var(--ok)} .st-fail{color:var(--accent)} .st-wait{color:var(--wait)}
+.hist-acts{display:flex;gap:6px;margin-top:3px}
+.hist-acts button{width:auto;padding:1px 8px;border:1px solid rgba(127,127,127,.4);border-radius:5px;font-size:12px}
+.empty{padding:4px 10px 6px;opacity:.7}
+
+.meter{position:relative;height:6px;margin:6px 10px 2px;border-radius:3px;background:rgba(127,127,127,.25);overflow:visible}
+.meter .fill{position:absolute;inset:0 auto 0 0;border-radius:3px;background:var(--muted);transition:width .08s linear}
+.meter .fill.on{background:var(--ok)}
+.meter .th{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--menu-fg)}
+.meter.big{height:10px;margin:10px 0 4px}
+.meter-cap{display:flex;justify-content:space-between;padding:0 10px;font-size:12px;opacity:.7;font-variant-numeric:tabular-nums}
+
+/* 通知 */
+.notif{position:absolute;top:34px;right:10px;width:320px;padding:10px 12px;border-radius:12px;background:var(--menu);color:var(--menu-fg);
+  box-shadow:0 8px 24px rgba(0,0,0,.25);border:1px solid rgba(127,127,127,.25);z-index:30}
+.notif b{display:block}
+.notif .acts{margin-top:6px;display:flex;gap:6px}
+.notif .acts button{padding:2px 10px;border-radius:6px;border:1px solid rgba(127,127,127,.4);background:none;font-size:12px}
+
+/* ウィンドウ */
+.win{position:absolute;left:50%;top:56px;transform:translateX(-50%);width:min(560px,94%);max-height:440px;display:flex;flex-direction:column;
+  border-radius:11px;background:var(--card);color:var(--fg);box-shadow:0 18px 50px rgba(0,0,0,.35);border:1px solid var(--line);z-index:15}
+.win.small{width:min(520px,94%);top:80px}
+.titlebar{position:relative;display:flex;align-items:center;justify-content:center;height:30px;border-bottom:1px solid var(--line)}
+.lights{position:absolute;left:10px;display:flex;gap:7px}
+.lights i,.lights button{width:12px;height:12px;border-radius:50%;border:0;padding:0;display:block}
+.l-red{background:#ff5f57}.l-y{background:#febc2e}.l-g{background:#28c840}
+.wtitle{font-weight:600}
+.tabs{display:flex;justify-content:center;gap:4px;padding:8px;border-bottom:1px solid var(--line)}
+.tabs button{border:0;background:none;padding:4px 14px;border-radius:6px}
+.tabs button[aria-selected="true"]{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.pane{padding:14px 16px;overflow:auto}
+.pane label{display:block;font-weight:600;margin:0 0 4px}
+.pane textarea{width:100%;height:96px;padding:8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg);font-size:12px;resize:vertical}
+.row{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:8px 0}
+.btn{padding:3px 10px;border:1px solid var(--line);border-radius:6px;background:var(--card);font-size:12px}
+.btn.primary{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.hint{font-size:12px;color:var(--muted)}
+.pane pre{margin:8px 0 0;padding:8px;border-radius:6px;background:var(--bg);border:1px solid var(--line);font-size:12px;white-space:pre-wrap;word-break:break-all}
+.pane table{width:100%;border-collapse:collapse;font-size:12px;margin-top:6px}
+.pane td{padding:3px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+.pane details{margin:8px 0}
+.pane summary{cursor:pointer;font-size:12px;color:var(--muted)}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-top:14px}
+.grid2 select,.pane input[type=range]{width:100%}
+.pane select{font:inherit;padding:2px 4px;border-radius:5px;border:1px solid var(--line);background:var(--bg);color:var(--fg)}
+.chk{display:flex !important;gap:8px;align-items:center;font-weight:400 !important;margin:6px 0 !important}
+.path{font-size:12px;padding:4px 8px;border-radius:5px;background:var(--bg);border:1px solid var(--line);word-break:break-all}
+
+/* システムのダイアログと最初の吹き出し */
+.dialog{position:absolute;left:50%;top:90px;transform:translateX(-50%);width:min(300px,90%);padding:18px 16px 14px;border-radius:14px;
+  background:var(--menu);color:var(--menu-fg);text-align:center;box-shadow:0 18px 50px rgba(0,0,0,.35);border:1px solid rgba(127,127,127,.25);z-index:40}
+.dialog .app{width:48px;height:48px;margin:0 auto 8px;border-radius:12px;background:var(--accent);display:grid;place-items:center;color:#fff}
+.dialog .app svg{width:26px;height:26px}
+.dialog p{margin:6px 0 12px;font-size:12px;opacity:.85}
+.dialog .acts{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.dialog .acts button{padding:5px;border-radius:7px;border:0;background:rgba(127,127,127,.25)}
+.dialog .acts .go{background:var(--menu-sel);color:#fff}
+.popover{position:absolute;top:34px;width:280px;padding:12px 14px;border-radius:10px;background:var(--card);color:var(--fg);
+  box-shadow:0 10px 30px rgba(0,0,0,.25);border:1px solid var(--line);z-index:25}
+.popover p{margin:0 0 10px}
+
+/* 右の操作盤 */
+.controls{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
+.controls h3{font-size:14px;margin:0 0 6px;color:var(--muted);font-weight:600}
+.controls section+section{margin-top:14px}
+.seg{display:grid;gap:6px}
+.seg.cols{grid-template-columns:repeat(3,1fr)}
+.seg button{padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);text-align:left;font-size:14px;line-height:1.35}
+.seg button[aria-pressed="true"]{border-color:var(--fg);box-shadow:inset 0 0 0 1px var(--fg);font-weight:600}
+.seg.cols button{text-align:center}
+.seg .sub{display:block;font-weight:400}
+.narr{margin-top:14px;padding:10px 12px;border-radius:8px;background:var(--accent-soft);min-height:68px;font-size:14px}
+.narr b{display:block;font-size:12px;color:var(--muted);font-weight:600}
+.big-btns{display:grid;gap:6px}
+.big-btns button{padding:8px;border-radius:8px;border:1px solid var(--line);background:var(--bg);font-weight:600}
+.big-btns button.primary{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+
+/* 下の時系列 */
+.below{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px}
+@media (max-width:860px){.below{grid-template-columns:minmax(0,1fr)}}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.panel canvas{width:100%;height:120px;display:block}
+.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:13px;color:var(--muted);margin-top:6px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.events{list-style:none;margin:0;padding:0;max-height:220px;overflow:auto;font-size:14px}
+.events li{padding:4px 0;border-bottom:1px solid var(--line);display:grid;grid-template-columns:68px 1fr;gap:8px}
+.events time{color:var(--muted);font-variant-numeric:tabular-nums}
+</style>
+</head>
+<body>
+<main>
+<h1>話し始めると勝手に録り、5分黙ると区切ってコマンドに渡す。ふだん見えるのはメニューバーのアイコンだけ</h1>
+<p class="lead">体験の mock。マイクの代わりに右のボタンで音を切り替える。「おまかせで再生」で、ひととおりの流れを1分ほどで見られる</p>
+
+<div class="stage">
+  <div class="desktop" id="desktop">
+    <div class="menubar">
+      <div class="mb-left"><i class="dot"></i><b>Finder</b><span>ファイル</span><span>編集</span><span>表示</span><span>ウインドウ</span></div>
+      <div class="mb-right"><button id="tcIcon" class="tc-icon" aria-haspopup="menu" aria-expanded="false" aria-label="talk-catcher"></button><span id="clock"></span></div>
+    </div>
+
+    <div class="menu" id="menu" role="menu" hidden>
+      <div class="menu-status" id="mStatus"></div>
+      <div class="meter"><div class="fill" id="mFill"></div><div class="th" id="mTh"></div></div>
+      <div class="meter-cap"><span id="mLevel"></span><span id="mThCap"></span></div>
+      <hr>
+      <div class="menu-h">直近の録音</div>
+      <div id="mHist"></div>
+      <hr>
+      <button data-act="pause15">15分止める</button>
+      <button data-act="pause60">1時間止める</button>
+      <button data-act="pauseInf">再開するまで止める</button>
+      <button data-act="resume" hidden>再開する</button>
+      <hr>
+      <button data-act="folder">録音フォルダを開く</button>
+      <button data-act="log">ログを見る</button>
+      <button data-act="settings">設定… <kbd>⌘,</kbd></button>
+      <hr>
+      <button data-act="quit">talk-catcher を終了 <kbd>⌘Q</kbd></button>
+    </div>
+
+    <div class="notif" id="notif" hidden></div>
+
+    <div class="popover" id="welcome" hidden>
+      <p><b>talk-catcher はここにいる</b><br>話し始めたら勝手に録って、5分黙ったら区切る。録ったファイルをどうするかは、設定のコマンドで決める。いまは空なので保存だけ</p>
+      <div class="row"><button class="btn primary" data-act="welcomeCmd">コマンドを設定する</button><button class="btn" data-act="welcomeLater">あとで</button></div>
+    </div>
+
+    <div class="dialog" id="perm" hidden>
+      <div class="app" id="permIcon"></div>
+      <b>“talk-catcher” がマイクへのアクセスを求めています</b>
+      <p>声を検知して自動で録音するために使います。声と判定するまで、音はメモリに30秒分だけ置き、どこにも保存しません</p>
+      <div class="acts"><button data-act="permNo">許可しない</button><button class="go" data-act="permYes">許可</button></div>
+    </div>
+
+    <div class="win" id="settings" role="dialog" aria-label="talk-catcher 設定" hidden>
+      <div class="titlebar"><span class="lights"><button class="l-red" data-act="closeSettings" aria-label="閉じる"></button><i class="l-y"></i><i class="l-g"></i></span><span class="wtitle">talk-catcher 設定</span></div>
+      <div class="tabs" role="tablist">
+        <button role="tab" data-tab="cmd" aria-selected="true">コマンド</button>
+        <button role="tab" data-tab="listen" aria-selected="false">聞き取り</button>
+        <button role="tab" data-tab="general" aria-selected="false">一般</button>
+      </div>
+      <div class="pane" data-pane="cmd">
+        <label for="cmd">録り終えたら実行するコマンド</label>
+        <textarea id="cmd" spellcheck="false" placeholder="空なら、ファイルを保存するだけ"></textarea>
+        <div class="row"><span class="hint">例から入れる</span>
+          <button class="btn" data-preset="openai">文字起こし API に送る</button>
+          <button class="btn" data-preset="whisper">手元で文字起こし</button>
+          <button class="btn" data-preset="notify">通知だけ出す</button>
+        </div>
+        <details><summary>コマンドに渡るもの</summary>
+          <table>
+            <tr><td><code>$1</code> <code>$TC_FILE</code></td><td>録音ファイルの絶対パス</td></tr>
+            <tr><td><code>$TC_STARTED_AT</code> <code>$TC_ENDED_AT</code></td><td>頭と終わりの時刻(ISO 8601)</td></tr>
+            <tr><td><code>$TC_DURATION_SEC</code></td><td>長さ(秒)</td></tr>
+            <tr><td><code>$TC_REASON</code></td><td><code>silence</code> / <code>max_length</code> / <code>stopped</code> / <code>quit</code></td></tr>
+          </table>
+        </details>
+        <div class="row"><button class="btn primary" data-act="test">最後の録音で試す</button><span class="hint">鍵はここに書かず、Keychain から読む</span></div>
+        <pre id="testOut" hidden></pre>
+      </div>
+      <div class="pane" data-pane="listen" hidden>
+        <label for="th">音量のしきい値 <output id="thOut"></output></label>
+        <input type="range" id="th" min="-60" max="-10" step="1" value="-35">
+        <div class="meter big"><div class="fill" id="sFill"></div><div class="th" id="sTh"></div></div>
+        <div class="hint">いまの音 <span id="sLevel"></span>。声のときに線より右なら flag が立つ。遠くの会話が線の左に収まる位置にする</div>
+        <div class="grid2">
+          <label>遡る長さ<select id="pre"><option value="1">1秒</option><option value="3" selected>3秒</option><option value="5">5秒</option><option value="10">10秒</option></select></label>
+          <label>終わりの判定<select id="endS"><option value="60">1分黙ったら</option><option value="180">3分黙ったら</option><option value="300" selected>5分黙ったら</option><option value="600">10分黙ったら</option></select></label>
+          <label>1本の上限<select id="maxL"><option value="1800">30分</option><option value="3600" selected>60分</option><option value="7200">120分</option></select></label>
+        </div>
+      </div>
+      <div class="pane" data-pane="general" hidden>
+        <label class="chk"><input type="checkbox" checked> ログイン時に起動する</label>
+        <label class="chk"><input type="checkbox" id="callStop" checked> 通話アプリがマイクを使っている間は止める</label>
+        <label class="chk"><input type="checkbox" id="notifyOk"> コマンドが成功するたびに通知する(失敗は必ず通知する)</label>
+        <label style="margin-top:12px">保存先</label>
+        <div class="row"><span class="path">~/Library/Application Support/talk-catcher/recordings/</span><button class="btn" data-act="folder">変更…</button></div>
+      </div>
+    </div>
+
+    <div class="win small" id="logwin" role="dialog" aria-label="ログ" hidden>
+      <div class="titlebar"><span class="lights"><button class="l-red" data-act="closeLog" aria-label="閉じる"></button><i class="l-y"></i><i class="l-g"></i></span><span class="wtitle">talk-catcher ログ</span></div>
+      <div class="pane"><pre id="logOut"></pre></div>
+    </div>
+  </div>
+
+  <aside class="controls" aria-label="mock の操作">
+    <section>
+      <h3>周りの音</h3>
+      <div class="seg" id="modeSeg">
+        <button data-mode="quiet" aria-pressed="true">静か<span class="sub">雑音だけ -49 dBFS</span></button>
+        <button data-mode="near" aria-pressed="false">近くで話す<span class="sub">話しかけられた -25 dBFS</span></button>
+        <button data-mode="far" aria-pressed="false">遠くで話す<span class="sub">離れた席の会話 -44 dBFS</span></button>
+        <button data-mode="call" aria-pressed="false">通話が始まる<span class="sub">通話アプリがマイクを使う</span></button>
+      </div>
+    </section>
+    <section>
+      <h3>時間の進み方</h3>
+      <div class="seg cols" id="speedSeg">
+        <button data-speed="1" aria-pressed="true">等速</button>
+        <button data-speed="10" aria-pressed="false">10倍</button>
+        <button data-speed="60" aria-pressed="false">60倍</button>
+      </div>
+    </section>
+    <section>
+      <label class="chk" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="fail"> コマンドを失敗させる</label>
+    </section>
+    <section class="big-btns">
+      <button class="primary" id="autoplay">おまかせで再生</button>
+      <button id="firstRun">最初の起動から見る</button>
+    </section>
+    <div class="narr" id="narr" aria-live="polite"><b>いま起きていること</b><span id="narrText">静か。アイコンはグレーのまま、何も残らない</span></div>
+  </aside>
+</div>
+
+<div class="below">
+  <section>
+    <h2>直近の音と flag。緑の間だけが録音に入る</h2>
+    <div class="panel">
+      <canvas id="tl" height="120" aria-label="直近の音量と flag の時系列"></canvas>
+      <div class="legend"><span><i style="background:var(--ok)"></i>flag(声 かつ しきい値以上)</span><span><i style="background:var(--muted)"></i>声だけど小さい</span><span><i style="background:var(--line)"></i>声じゃない</span><span>点線 = 音量のしきい値</span></div>
+    </div>
+  </section>
+  <section>
+    <h2>出来事</h2>
+    <div class="panel"><ol class="events" id="events"></ol></div>
+  </section>
+</div>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const ICON = {
+  mic:'<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="5.5" y="1.5" width="5" height="8.5" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M3.3 7.8a4.7 4.7 0 0 0 9.4 0M8 12.5v2.2" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>',
+  micOff:'<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="5.5" y="1.5" width="5" height="8.5" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.4" opacity=".55"/><path d="M3.3 7.8a4.7 4.7 0 0 0 9.4 0M8 12.5v2.2" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" opacity=".55"/><path d="M2 2l12 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
+  rec:'<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.2" fill="currentColor"/></svg>',
+  hand:'<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 10.5V2.5M4.8 5.6 8 2.4l3.2 3.2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M2.5 10v3.5h11V10" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>',
+  call:'<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.2 1.8l2 2.6-1.3 1.6c.8 1.9 2.2 3.3 4.1 4.1l1.6-1.3 2.6 2-1.2 2.2C7 13 3 9 2 3z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>',
+  wait:(p)=>`<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.4" opacity=".3"/><circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-dasharray="${(34.56*p).toFixed(2)} 40" transform="rotate(-90 8 8)" stroke-linecap="round"/></svg>`
+};
+$('permIcon').innerHTML = ICON.mic;
+
+const START = new Date(2026,9,29,17,20,0).getTime();
+const S = {
+  mode:'quiet', sim:START, speed:1,
+  threshold:-35, preroll:3, endSilence:300, maxLen:3600, callStop:true, notifyOk:false,
+  paused:false, pauseUntil:null, permitted:true,
+  rec:null, handingUntil:0, failCmd:false, command:'',
+  history:[], samples:[], events:[], logs:[], level:-49, flag:false, seq:0
+};
+
+const pad = n => String(n).padStart(2,'0');
+const hms = t => { const d=new Date(t); return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; };
+const hm = t => { const d=new Date(t); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+const mmss = ms => { const s=Math.max(0,Math.round(ms/1000)); return `${Math.floor(s/60)}:${pad(s%60)}`; };
+const durJa = ms => { const s=Math.round(ms/1000); return s>=60?`${Math.floor(s/60)}分${pad(s%60)}秒`:`${s}秒`; };
+const iso = t => { const d=new Date(t); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${hms(t)}+09:00`; };
+const fileOf = t => { const d=new Date(t); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${hms(t).replace(/:/g,'-')}.m4a`; };
+const DIR = '~/Library/Application Support/talk-catcher/recordings/';
+
+function event(text){ S.events.unshift({t:S.sim,text}); S.events.length=Math.min(S.events.length,40); renderEvents(); if(!auto.on) setNarr(text); }
+function log(line){ S.logs.push(`[${hms(S.sim)}] ${line}`); if(!$('logwin').hidden) $('logOut').textContent=S.logs.join('\n'); }
+function setNarr(t){ $('narrText').textContent=t; }
+
+function genLevel(){
+  const n = a => (Math.random()*2-1)*a;
+  return {quiet:-49+n(1.5), near:-25+n(4), far:-44+n(2), call:-24+n(4)}[S.mode];
+}
+function listening(){ return S.permitted && !S.paused && !(S.mode==='call' && S.callStop); }
+
+function tick(){
+  S.sim += 100*S.speed;
+  if(S.paused && S.pauseUntil && S.sim>=S.pauseUntil){ S.paused=false; S.pauseUntil=null; event('一時停止が終わった。また聞き始める'); }
+  S.level = genLevel();
+  const vad = S.mode!=='quiet';
+  const on = listening();
+  S.flag = on && vad && S.level>=S.threshold;
+  S.samples.push({level:S.level, flag:S.flag, vad, on});
+  if(S.samples.length>300) S.samples.shift();
+
+  if(S.rec){
+    if(!on){ cut('stopped'); }
+    else if(S.flag){
+      if(!S.rec.flagOn){ S.rec.flagOn=true; event('5分以内にまた flag が立った。同じ1本の続きにする'); }
+      S.rec.lastFlag=S.sim;
+    } else {
+      if(S.rec.flagOn){ S.rec.flagOn=false; event(`flag が下がった。${S.endSilence/60}分黙ったら区切る`); }
+      if(S.sim-S.rec.lastFlag >= S.endSilence*1000) cut('silence');
+    }
+    if(S.rec && S.sim-S.rec.start >= S.maxLen*1000) cut('max_length');
+  } else if(S.flag){
+    S.rec={start:S.sim-S.preroll*1000, lastFlag:S.sim, flagOn:true};
+    event(`flag が立った。${S.preroll}秒前の音から録り始める`);
+  } else if(S.mode==='far' && on && S.samples.length>1 && !S.samples[S.samples.length-2].vad){
+    event('遠くの会話は声だけど音量が足りないので、flag は立たない');
+  }
+  for(const h of S.history) if(h.status==='retry' && S.sim>=h.nextAt) runCommand(h);
+  if(auto.on) auto.step();
+  render();
+}
+
+function cut(reason){
+  const r=S.rec; S.rec=null;
+  const end = reason==='max_length' ? S.sim : Math.min(S.sim, r.lastFlag+5000);
+  const h={id:++S.seq, start:r.start, end, reason, file:fileOf(r.start), tries:0, status:'queued', exit:null, out:''};
+  S.history.unshift(h);
+  const why={silence:`${S.endSilence/60}分黙った`, max_length:'上限の長さに達した', stopped:'止めた', quit:'終了した'}[reason];
+  event(`${why}ので区切った。${durJa(end-r.start)}をファイルにした(末尾の無音は切った)`);
+  runCommand(h);
+}
+
+function runCommand(h){
+  if(!S.command.trim()){ h.status='saved'; event('コマンドが空なので、保存だけして終わり'); log(`保存: ${DIR}${h.file}`); return; }
+  h.status='running'; h.tries++; S.handingUntil=Date.now()+1500;
+  log(`$ /bin/zsh -lc '…' -- ${DIR}${h.file}  (${h.tries}回目)`);
+  event(`コマンドに渡した(${h.tries}回目)`);
+  setTimeout(()=>{
+    if(S.failCmd){
+      h.exit=22; h.out='curl: (22) The requested URL returned error: 401'; log(h.out); log('exit 22');
+      if(h.tries>=3){
+        h.status='failed'; event('3回失敗した。ファイルは消さずに残してある');
+        notify('コマンドに渡せなかった', `${hm(h.start)} からの録音(${durJa(h.end-h.start)})。3回とも exit 22`, [['ログを見る','log'],['もう一度渡す','retry:'+h.id]]);
+      } else {
+        const wait=[60,300][h.tries-1]; h.status='retry'; h.nextAt=S.sim+wait*1000;
+        event(`失敗した(exit 22)。${wait/60}分後にもう一度渡す`);
+      }
+    } else {
+      h.status='ok'; h.exit=0; log('exit 0'); event('コマンドが exit 0 で終わった');
+      if(S.notifyOk) notify('コマンドに渡した', `${hm(h.start)} からの録音(${durJa(h.end-h.start)})`, []);
+    }
+    render();
+  },1500);
+}
+
+let notifTimer;
+function notify(title, body, acts){
+  const n=$('notif');
+  n.innerHTML=`<b>talk-catcher — ${title}</b><span>${body}</span>`+(acts.length?`<div class="acts">${acts.map(([l,a])=>`<button data-act="${a}">${l}</button>`).join('')}</div>`:'');
+  n.hidden=false; clearTimeout(notifTimer); notifTimer=setTimeout(()=>n.hidden=true, 7000);
+}
+
+function iconState(){
+  if(!S.permitted) return 'noperm';
+  if(S.paused) return 'paused';
+  if(S.mode==='call' && S.callStop) return 'call';
+  if(S.rec) return S.rec.flagOn ? 'rec' : 'wait';
+  if(Date.now()<S.handingUntil) return 'hand';
+  return 'idle';
+}
+
+let lastHistSig='';
+function render(){
+  const d=new Date(S.sim);
+  $('clock').textContent=`${d.getMonth()+1}月${d.getDate()}日(${'日月火水木金土'[d.getDay()]}) ${hm(S.sim)}`;
+  const st=iconState(), err=S.history.some(h=>h.status==='failed');
+  let html, label;
+  switch(st){
+    case 'rec': html=`<span class="rec-c">${ICON.rec}</span><span class="rec-c">${mmss(S.sim-S.rec.start)}</span>`; label=`録音中 — ${hms(S.rec.start)} から ${mmss(S.sim-S.rec.start)}`; break;
+    case 'wait': { const left=S.endSilence*1000-(S.sim-S.rec.lastFlag); html=`<span class="wait-c">${ICON.wait(left/(S.endSilence*1000))}</span><span class="wait-c">${mmss(left)}</span>`; label=`終わり待ち — あと ${mmss(left)} 黙ったら区切る`; break; }
+    case 'hand': html=ICON.hand; label='コマンドに渡してる'; break;
+    case 'paused': html=ICON.micOff; label= S.pauseUntil?`一時停止中 — ${hm(S.pauseUntil)} まで`:'一時停止中 — 再開するまで'; break;
+    case 'call': html=ICON.call; label='通話中なので止めてる'; break;
+    case 'noperm': html=ICON.micOff; label='マイクを使えない — システム設定で許可して'; break;
+    default: html=ICON.mic; label='待機中 — 声を待ってる';
+  }
+  $('tcIcon').innerHTML = html + (err?'<span class="badge"></span>':'');
+  $('tcIcon').setAttribute('aria-label', 'talk-catcher: '+label);
+
+  const pct = v => Math.max(0,Math.min(100,(v+60)/60*100));
+  if(!$('menu').hidden){
+    $('mStatus').textContent=label;
+    $('mFill').style.width=(S.permitted&&!S.paused?pct(S.level):0)+'%';
+    $('mFill').classList.toggle('on',S.flag);
+    $('mTh').style.left=pct(S.threshold)+'%';
+    $('mLevel').textContent=`いまの音 ${Math.round(S.level)} dBFS`;
+    $('mThCap').textContent=`しきい値 ${S.threshold}`;
+    document.querySelectorAll('#menu [data-act^="pause"]').forEach(b=>b.hidden=S.paused);
+    document.querySelector('#menu [data-act="resume"]').hidden=!S.paused;
+    const sig=S.history.map(h=>h.id+h.status+h.tries).join('|');
+    if(sig!==lastHistSig){ lastHistSig=sig; renderHist(); }
+  }
+  if(!$('settings').hidden){
+    $('sFill').style.width=pct(S.level)+'%'; $('sFill').classList.toggle('on',S.flag);
+    $('sTh').style.left=pct(S.threshold)+'%';
+    $('sLevel').textContent=`${Math.round(S.level)} dBFS`;
+    $('thOut').textContent=`${S.threshold} dBFS`;
+  }
+  drawTL();
+}
+
+function renderHist(){
+  const box=$('mHist');
+  if(!S.history.length){ box.innerHTML='<div class="empty">まだ録音はない。話し始めると、ここに並ぶ</div>'; return; }
+  const stTxt = h => ({ok:['<span class="st-ok">渡した</span>'], saved:['保存だけ'], running:['<span class="st-wait">渡してる…</span>'], queued:['待ち'],
+    retry:[`<span class="st-wait">${hm(h.nextAt)} にもう一度</span>`], failed:['<span class="st-fail">失敗(3回)</span>']}[h.status][0]);
+  box.innerHTML=S.history.slice(0,4).map(h=>`<div class="item hist"><div class="top"><span>${hm(h.start)}〜${hm(h.end)}</span><span class="sub">${durJa(h.end-h.start)}・${stTxt(h)}</span></div>`+
+    (h.status==='failed'?`<div class="hist-acts"><button data-act="retry:${h.id}">もう一度渡す</button><button data-act="log">ログを見る</button></div>`:'')+`</div>`).join('');
+}
+
+function renderEvents(){
+  $('events').innerHTML=S.events.map(e=>`<li><time>${hms(e.t)}</time><span>${e.text}</span></li>`).join('');
+}
+
+function drawTL(){
+  const c=$('tl'), w=c.clientWidth, h=120, dpr=window.devicePixelRatio||1;
+  if(c.width!==w*dpr){ c.width=w*dpr; c.height=h*dpr; }
+  const g=c.getContext('2d'); g.setTransform(dpr,0,0,dpr,0,0); g.clearRect(0,0,w,h);
+  const cs=getComputedStyle(document.documentElement), col=k=>cs.getPropertyValue(k).trim();
+  const y = v => h-4-Math.max(0,Math.min(1,(v+60)/60))*(h-8);
+  const bw=w/300;
+  S.samples.forEach((s,i)=>{
+    g.fillStyle = s.flag?col('--ok'):(s.vad&&s.on?col('--muted'):col('--line'));
+    const top=y(s.level); g.fillRect(i*bw, top, Math.max(1,bw-0.5), h-4-top);
+  });
+  g.strokeStyle=col('--fg'); g.setLineDash([4,4]); g.lineWidth=1;
+  g.beginPath(); g.moveTo(0,y(S.threshold)); g.lineTo(w,y(S.threshold)); g.stroke(); g.setLineDash([]);
+}
+
+/* メニューとウィンドウ */
+const desk=$('desktop');
+function place(el){
+  const dr=desk.getBoundingClientRect(), ir=$('tcIcon').getBoundingClientRect();
+  el.style.right=Math.max(6, dr.right-ir.right-8)+'px';
+}
+function toggleMenu(open){
+  const m=$('menu'); open = open ?? m.hidden;
+  m.hidden=!open; $('tcIcon').setAttribute('aria-expanded',open);
+  if(open){ place(m); lastHistSig=''; $('welcome').hidden=true; render(); }
+}
+$('tcIcon').addEventListener('click',e=>{e.stopPropagation(); toggleMenu();});
+document.addEventListener('click',e=>{ if(!$('menu').hidden && !e.target.closest('#menu')) toggleMenu(false); });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ toggleMenu(false); $('settings').hidden=true; $('logwin').hidden=true; } });
+
+function openSettings(tab){ $('settings').hidden=false; if(tab) selectTab(tab); render(); }
+function selectTab(t){
+  document.querySelectorAll('.tabs [data-tab]').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===t));
+  document.querySelectorAll('.pane[data-pane]').forEach(p=>p.hidden=p.dataset.pane!==t);
+}
+document.querySelectorAll('.tabs [data-tab]').forEach(b=>b.addEventListener('click',()=>selectTab(b.dataset.tab)));
+
+desk.addEventListener('click',e=>{
+  const b=e.target.closest('[data-act]'); if(!b) return;
+  const a=b.dataset.act;
+  if(b.closest('#menu')) toggleMenu(false);
+  const pause=(min)=>{ if(S.rec) S.paused=true; S.paused=true; S.pauseUntil=min?S.sim+min*60000:null; event(min?`${min}分止めた。${hm(S.pauseUntil)} にまた聞き始める`:'止めた。再開するまで何も聞かない'); };
+  if(a==='pause15') pause(15);
+  else if(a==='pause60') pause(60);
+  else if(a==='pauseInf') pause(0);
+  else if(a==='resume'){ S.paused=false; S.pauseUntil=null; event('再開した。また聞き始める'); }
+  else if(a==='folder') notify('mock', `Finder で ${DIR} を開く`, []);
+  else if(a==='log'){ $('logwin').hidden=false; $('logOut').textContent=S.logs.join('\n')||'まだ何もない'; $('notif').hidden=true; }
+  else if(a==='closeLog') $('logwin').hidden=true;
+  else if(a==='settings') openSettings();
+  else if(a==='closeSettings') $('settings').hidden=true;
+  else if(a==='quit'){ if(S.rec) cut('quit'); notify('mock','終了した。録音中の分があれば区切ってコマンドに渡してから終わる。mock なのでこのまま続く',[]); }
+  else if(a.startsWith('retry:')){ const h=S.history.find(x=>x.id==a.slice(6)); if(h){ h.tries=0; $('notif').hidden=true; runCommand(h);} }
+  else if(a==='test') testRun();
+  else if(a==='permYes'){ $('perm').hidden=true; S.permitted=true; event('マイクを許可した。ここから聞き始める'); place($('welcome')); $('welcome').hidden=false; }
+  else if(a==='permNo'){ $('perm').hidden=true; S.permitted=false; event('マイクを許可しなかった。アイコンに斜線が入り、何も録らない'); setNarr('マイクを許可しないと何も録れない。メニューに「システム設定で許可して」と出る'); }
+  else if(a==='welcomeCmd'){ $('welcome').hidden=true; openSettings('cmd'); }
+  else if(a==='welcomeLater'){ $('welcome').hidden=true; }
+});
+
+const PRESET={
+  openai:`curl -sf https://api.openai.com/v1/audio/transcriptions \\
+  -H "Authorization: Bearer $(security find-generic-password -s openai-api-key -w)" \\
+  -F model=gpt-4o-transcribe -F file=@"$TC_FILE" \\
+  > "\${TC_FILE%.m4a}.json"`,
+  whisper:`ffmpeg -loglevel error -i "$TC_FILE" -ar 16000 -ac 1 "\${TC_FILE%.m4a}.wav" \\
+  && whisper-cli -m ~/models/ggml-large-v3-turbo.bin -l ja -otxt -f "\${TC_FILE%.m4a}.wav"`,
+  notify:`osascript -e "display notification \\"$TC_DURATION_SEC 秒の録音を保存した\\" with title \\"talk-catcher\\""`
+};
+document.querySelectorAll('[data-preset]').forEach(b=>b.addEventListener('click',()=>{ $('cmd').value=PRESET[b.dataset.preset]; S.command=$('cmd').value; }));
+$('cmd').addEventListener('input',()=>S.command=$('cmd').value);
+
+function testRun(){
+  const out=$('testOut'); out.hidden=false;
+  if(!S.command.trim()){ out.textContent='コマンドが空。空のままなら、録音は保存だけされる'; return; }
+  const h=S.history[0];
+  const file=h?h.file:fileOf(S.sim), st=h?h.start:S.sim-3000, en=h?h.end:S.sim;
+  out.textContent=`${h?'':'まだ録音がないので、3秒の無音のファイルで試す\n'}$ /bin/zsh -lc '…' -- ${DIR}${file}\nTC_STARTED_AT=${iso(st)}\nTC_ENDED_AT=${iso(en)}\nTC_DURATION_SEC=${Math.round((en-st)/1000)}\nTC_REASON=${h?h.reason:'silence'}\n\n実行中…`;
+  setTimeout(()=>{ out.textContent=out.textContent.replace('実行中…', S.failCmd?'curl: (22) The requested URL returned error: 401\nexit 22(1.2秒)— 失敗。鍵か URL を見直す':'exit 0(1.2秒)— 成功'); },1200);
+}
+
+$('th').addEventListener('input',e=>{ S.threshold=+e.target.value; render(); });
+$('pre').addEventListener('change',e=>S.preroll=+e.target.value);
+$('endS').addEventListener('change',e=>S.endSilence=+e.target.value);
+$('maxL').addEventListener('change',e=>S.maxLen=+e.target.value);
+$('callStop').addEventListener('change',e=>S.callStop=e.target.checked);
+$('notifyOk').addEventListener('change',e=>S.notifyOk=e.target.checked);
+$('fail').addEventListener('change',e=>S.failCmd=e.target.checked);
+
+/* 右の操作盤 */
+function setMode(m){ S.mode=m; document.querySelectorAll('#modeSeg button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.mode===m));
+  if(m==='call' && S.callStop) event('通話が始まった。通話中は止める(アイコンが受話器になる)');
+  if(m==='call' && !S.callStop) event('通話が始まった。止めない設定なので、通話の声も録る'); }
+function setSpeed(v){ S.speed=v; document.querySelectorAll('#speedSeg button').forEach(b=>b.setAttribute('aria-pressed',+b.dataset.speed===v)); }
+document.querySelectorAll('#modeSeg button').forEach(b=>b.addEventListener('click',()=>{ auto.stop(); setMode(b.dataset.mode); }));
+document.querySelectorAll('#speedSeg button').forEach(b=>b.addEventListener('click',()=>{ auto.stop(); setSpeed(+b.dataset.speed); }));
+
+const SCRIPT=[
+  {mode:'quiet', dur:6,   speed:1,  note:'静か。アイコンはグレーのマイクのまま。音はメモリに30秒分だけ置いて、どこにも残らない'},
+  {mode:'near',  dur:20,  speed:1,  note:'話しかけられた。flag が立ち、3秒前の音から録り始める。アイコンが赤くなって経過時間が出る'},
+  {mode:'quiet', dur:20,  speed:1,  note:'会話が途切れた。すぐには切らず、オレンジの輪で「あと何分黙ったら区切るか」を見せる'},
+  {mode:'near',  dur:12,  speed:1,  note:'5分以内にまた話したので、別の録音にはならず同じ1本の続きになる'},
+  {mode:'quiet', dur:310, speed:60, note:'5分黙った(60倍で早送り中)。最後の声から5秒後で切ってファイルにし、設定したコマンドに渡す'},
+  {mode:'far',   dur:20,  speed:1,  note:'遠くの席の会話。声ではあるけど音量がしきい値に届かないので、flag は立たない'},
+  {mode:'call',  dur:12,  speed:1,  note:'通話が始まった。通話アプリがマイクを使っている間は止める'},
+  {mode:'quiet', dur:4,   speed:1,  note:'おしまい。メニューを開くと、いまの録音とコマンドの結果が並んでる'}
+];
+const auto={on:false,i:0,t0:0,
+  start(){ this.on=true; this.i=-1; this.next(); $('autoplay').textContent='止める'; },
+  stop(){ if(!this.on) return; this.on=false; $('autoplay').textContent='おまかせで再生'; setSpeed(1); },
+  next(){ this.i++; if(this.i>=SCRIPT.length){ this.stop(); toggleMenu(true); return; }
+    const s=SCRIPT[this.i]; this.t0=S.sim; setSpeed(s.speed); setMode(s.mode); setNarr(`${this.i+1}/${SCRIPT.length} ${s.note}`); },
+  step(){ if(S.sim-this.t0 >= SCRIPT[this.i].dur*1000) this.next(); }
+};
+$('autoplay').addEventListener('click',()=> auto.on?auto.stop():(toggleMenu(false), auto.start()));
+
+$('firstRun').addEventListener('click',()=>{
+  auto.stop();
+  Object.assign(S,{rec:null,history:[],events:[],logs:[],samples:[],paused:false,pauseUntil:null,command:'',permitted:false,sim:START});
+  $('cmd').value=''; $('testOut').hidden=true; setMode('quiet'); setSpeed(1);
+  ['menu','settings','logwin','notif','welcome'].forEach(id=>$(id).hidden=true);
+  $('perm').hidden=false; renderEvents();
+  setNarr('初めて起動すると、macOS がマイクを使っていいか聞いてくる。説明文で「どこにも保存しない」と伝える');
+});
+
+renderEvents();
+render();
+setInterval(tick,100);
+</script>
+</body>
+</html>

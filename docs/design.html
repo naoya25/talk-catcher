@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>talk-catcher 設計</title>
+<style>
+:root{
+  --bg:#fbfaf7; --fg:#1d1d1f; --muted:#6b6b70; --line:#d9d6cf; --card:#ffffff;
+  --accent:#d6331f; --accent-soft:#fbe4df; --ok:#1f7a4d; --ok-soft:#dcf1e5; --wait:#8a6d00; --wait-soft:#fbf1cc;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#16161a; --fg:#ececf0; --muted:#a0a0aa; --line:#3a3a42; --card:#1f1f25;
+    --accent:#ff6a55; --accent-soft:#40201c; --ok:#5fd39a; --ok-soft:#163626; --wait:#e8c547; --wait-soft:#3a3115;
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:"Noto Sans JP","Hiragino Sans",system-ui,sans-serif;line-height:1.75;font-size:16px}
+main{max-width:960px;margin:0 auto;padding:40px 16px 80px}
+h1{font-size:28px;line-height:1.4;margin:0 0 8px}
+.lead{color:var(--muted);margin:0 0 40px}
+h2{font-size:21px;line-height:1.5;margin:56px 0 16px;padding-top:16px;border-top:1px solid var(--line)}
+figure{margin:0 0 16px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px}
+figure svg{width:100%;height:auto;display:block}
+figcaption{color:var(--muted);font-size:14px;margin-top:8px}
+ol.why{margin:8px 0 0;padding-left:1.4em}
+ol.why li{margin:2px 0}
+code{font-family:ui-monospace,Menlo,monospace;font-size:.9em;background:var(--accent-soft);padding:1px 5px;border-radius:4px}
+table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);font-size:15px}
+th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{background:var(--bg);font-weight:600}
+td.v{font-weight:600;white-space:nowrap}
+.tag{display:inline-block;font-size:13px;padding:1px 8px;border-radius:99px;white-space:nowrap}
+.done{background:var(--ok-soft);color:var(--ok)}
+.todo{background:var(--wait-soft);color:var(--wait)}
+.who{font-size:13px;color:var(--muted)}
+.svg-t{fill:var(--fg);font-size:15px}
+.svg-s{fill:var(--muted);font-size:13px}
+.box{fill:var(--card);stroke:var(--line);stroke-width:1.5}
+.box-a{fill:var(--accent-soft);stroke:var(--accent);stroke-width:1.5}
+.box-o{fill:var(--ok-soft);stroke:var(--ok);stroke-width:1.5}
+.box-u{fill:none;stroke:var(--muted);stroke-width:1.5;stroke-dasharray:5 4}
+.frame{fill:none;stroke:var(--fg);stroke-width:1.2;stroke-dasharray:6 5}
+.arrow{stroke:var(--fg);stroke-width:1.6;fill:none;marker-end:url(#ah)}
+.arrow2{stroke:var(--fg);stroke-width:1.6;fill:none;marker-end:url(#ah2)}
+.bus{stroke:var(--fg);stroke-width:1.6;fill:none}
+.ah{fill:var(--fg)}
+.wrap{overflow-x:auto}
+</style>
+</head>
+<body>
+<main>
+<h1>声と音量で flag を立てて録り、録り終えたファイルはユーザーが書いたコマンドに渡す</h1>
+<p class="lead">2026-10-29 改訂・送り先を決め打ちするのをやめて、録音ファイルを設定したコマンドに渡す形にした</p>
+
+<h2>アプリは録ってファイルにするところまで。その先はユーザーのコマンドが決める</h2>
+<figure>
+<div class="wrap">
+<svg viewBox="0 0 880 420" role="img" aria-label="アプリの中でマイクから flag の判定、録音、末尾の切り落とし、ファイルへの保存、コマンドに渡す列まで進み、アプリの外でユーザーが書いたコマンドがファイルを受け取る構成図">
+<defs>
+<marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0,0 L10,5 L0,10 z"/></marker>
+</defs>
+<rect class="frame" x="4" y="22" width="872" height="236" rx="10"/>
+<text class="svg-s" x="16" y="40">アプリの中(Swift)</text>
+<rect class="box" x="16" y="58" width="114" height="70" rx="8"/>
+<text class="svg-t" x="73" y="90" text-anchor="middle">マイク</text>
+<text class="svg-s" x="73" y="112" text-anchor="middle">16kHz mono</text>
+<rect class="box" x="170" y="58" width="150" height="70" rx="8"/>
+<text class="svg-t" x="245" y="90" text-anchor="middle">直近の音を保持</text>
+<text class="svg-s" x="245" y="112" text-anchor="middle">メモリに30秒</text>
+<rect class="box-a" x="360" y="48" width="180" height="90" rx="8"/>
+<text class="svg-t" x="450" y="80" text-anchor="middle">flag の判定</text>
+<text class="svg-s" x="450" y="102" text-anchor="middle">Silero VAD ≥ 0.5</text>
+<text class="svg-s" x="450" y="122" text-anchor="middle">かつ 音量 ≥ -35 dBFS</text>
+<rect class="box" x="580" y="58" width="130" height="70" rx="8"/>
+<text class="svg-t" x="645" y="90" text-anchor="middle">録音</text>
+<text class="svg-s" x="645" y="112" text-anchor="middle">3秒遡って開始</text>
+<rect class="box" x="740" y="58" width="124" height="70" rx="8"/>
+<text class="svg-t" x="802" y="90" text-anchor="middle">末尾を切る</text>
+<text class="svg-s" x="802" y="112" text-anchor="middle">最後の flag+5秒</text>
+<path class="arrow" d="M130,93 H168"/>
+<path class="arrow" d="M320,93 H358"/>
+<path class="arrow" d="M540,93 H578"/>
+<path class="arrow" d="M710,93 H738"/>
+<rect class="box" x="724" y="170" width="140" height="70" rx="8"/>
+<text class="svg-t" x="794" y="202" text-anchor="middle">ファイルに保存</text>
+<text class="svg-s" x="794" y="224" text-anchor="middle">m4a・設定のフォルダ</text>
+<path class="arrow" d="M802,128 V168"/>
+<rect class="box-o" x="490" y="170" width="200" height="70" rx="8"/>
+<text class="svg-t" x="590" y="202" text-anchor="middle">コマンドに渡す列</text>
+<text class="svg-s" x="590" y="224" text-anchor="middle">失敗したら間を空けて再実行</text>
+<path class="arrow" d="M724,205 H692"/>
+<rect class="box" x="16" y="170" width="440" height="70" rx="8"/>
+<text class="svg-t" x="236" y="200" text-anchor="middle">メニューバー: 録音中の表示・一時停止・設定</text>
+<text class="svg-s" x="236" y="222" text-anchor="middle">通話アプリがマイクを使っている間は止める(設定)</text>
+<path class="bus" d="M590,240 V288"/>
+<path class="bus" d="M155,288 H730"/>
+<path class="arrow" d="M155,288 V318"/>
+<path class="arrow" d="M440,288 V318"/>
+<path class="arrow" d="M730,288 V318"/>
+<rect class="box-u" x="16" y="320" width="278" height="64" rx="8"/>
+<text class="svg-t" x="155" y="348" text-anchor="middle">文字起こし API に送る</text>
+<text class="svg-s" x="155" y="370" text-anchor="middle">curl で multipart</text>
+<rect class="box-u" x="306" y="320" width="268" height="64" rx="8"/>
+<text class="svg-t" x="440" y="348" text-anchor="middle">手元で文字起こし</text>
+<text class="svg-s" x="440" y="370" text-anchor="middle">whisper.cpp など</text>
+<rect class="box-u" x="586" y="320" width="278" height="64" rx="8"/>
+<text class="svg-t" x="725" y="348" text-anchor="middle">移す・通知する</text>
+<text class="svg-s" x="725" y="370" text-anchor="middle">mv・osascript など</text>
+<text class="svg-s" x="16" y="408">点線の枠はユーザーが書くコマンドの例。アプリは中身を知らない</text>
+</svg>
+</div>
+<figcaption>flag が立つまで、音はメモリの30秒分だけで、ディスクにも外にも残らない</figcaption>
+</figure>
+<ol class="why">
+<li>送り先ごとの違い(multipart の項目名・必須の項目・先に URL を発行する手順など)を、アプリが吸収しなくて済む</li>
+<li>認証情報はアプリが持たない。コマンドの中で Keychain(<code>security find-generic-password</code>)や環境変数から読む</li>
+<li>通話中に止めるのは、通話は通話アプリ側で録ることが多く、同じ会話を二重に残さないため。オフにもできる</li>
+</ol>
+
+<h2>コマンドにはファイルのパスと時刻を渡し、終了コードで成否を受け取る</h2>
+<table>
+<thead><tr><th>渡すもの</th><th>中身</th><th>例</th></tr></thead>
+<tbody>
+<tr><td>第1引数 と <code>TC_FILE</code></td><td>録音ファイルの絶対パス</td><td><code>…/recordings/2026-10-29T17-21-05.m4a</code></td></tr>
+<tr><td><code>TC_STARTED_AT</code> / <code>TC_ENDED_AT</code></td><td>ファイルの頭と終わりの時刻(ISO 8601)</td><td><code>2026-10-29T17:21:05+09:00</code></td></tr>
+<tr><td><code>TC_DURATION_SEC</code></td><td>ファイルの長さ(秒)</td><td><code>312</code></td></tr>
+<tr><td><code>TC_REASON</code></td><td>区切った理由</td><td><code>silence</code>(黙った)/ <code>max_length</code>(60分で区切った)/ <code>manual</code>(メニューで区切った)/ <code>stopped</code>(一時停止や通話で止めた)/ <code>quit</code>(アプリを終了した)</td></tr>
+</tbody>
+</table>
+<ol class="why">
+<li>コマンドは設定に書いた1行で、<code>/bin/zsh -lc</code> で実行する。ログインシェルにするのは、ユーザーの <code>PATH</code> にある <code>curl</code> や <code>whisper-cli</code> をそのまま使えるようにするため</li>
+<li>終了コード 0 で成功。0 以外か10分を超えたら失敗として、1分・5分あけて2回まで再実行する。3回とも失敗したらメニューバーに出し、ファイルは残す</li>
+<li>列は1本ずつ順に流す。前のファイルの処理が終わる前に次を渡さない</li>
+<li>アプリはファイルを消さない。消したいときはコマンドの最後で消す</li>
+<li>標準出力と標準エラーはログに残し、メニューバーから開ける</li>
+</ol>
+
+<h2>録音は「待機 → 録音中 → 終わり待ち → 引き渡し」の4状態で回る</h2>
+<figure>
+<div class="wrap">
+<svg viewBox="0 0 880 300" role="img" aria-label="待機、録音中、終わり待ち、引き渡しの4状態と、その間の遷移の条件">
+<defs>
+<marker id="ah2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0,0 L10,5 L0,10 z"/></marker>
+</defs>
+<rect class="box" x="20" y="100" width="140" height="64" rx="32"/>
+<text class="svg-t" x="90" y="138" text-anchor="middle">待機</text>
+<rect class="box-o" x="250" y="100" width="160" height="64" rx="32"/>
+<text class="svg-t" x="330" y="138" text-anchor="middle">録音中</text>
+<rect class="box" x="500" y="100" width="160" height="64" rx="32"/>
+<text class="svg-t" x="580" y="138" text-anchor="middle">終わり待ち</text>
+<rect class="box-a" x="740" y="100" width="120" height="64" rx="32"/>
+<text class="svg-t" x="800" y="138" text-anchor="middle">引き渡し</text>
+<path class="arrow2" d="M160,122 H248"/>
+<text class="svg-s" x="204" y="90" text-anchor="middle">声が1秒続く</text>
+<text class="svg-s" x="204" y="108" text-anchor="middle">3秒遡る</text>
+<path class="arrow2" d="M410,122 H498"/>
+<text class="svg-s" x="454" y="108" text-anchor="middle">flag が下がる</text>
+<path class="arrow2" d="M560,164 C560,196 350,196 350,166"/>
+<text class="svg-s" x="580" y="214" text-anchor="middle">5分以内にまた flag → 同じ1本を続ける</text>
+<path class="arrow2" d="M660,132 H738"/>
+<text class="svg-s" x="699" y="108" text-anchor="middle">5分続く</text>
+<path class="arrow2" d="M800,100 C800,30 90,30 90,98"/>
+<text class="svg-s" x="445" y="24" text-anchor="middle">最後の flag+5秒で切ってコマンドに渡し、待機へ戻る</text>
+<path class="arrow2" d="M300,164 C300,272 820,272 820,166"/>
+<text class="svg-s" x="565" y="292" text-anchor="middle">1本が60分を超えたら、そこで区切って渡し、録音は続ける</text>
+</svg>
+</div>
+<figcaption>終わりの判定は5分のままにして、渡すファイルからは最後の5分の無音を切り落とす</figcaption>
+</figure>
+<ol class="why">
+<li>5分待つのは、考え込む間や席を外して戻る間で1つの会話を割らないため</li>
+<li>末尾を切らないと、毎回5分の無音をコマンドに渡すことになる。音声の長さで課金する文字起こし API では、その分が無駄になる</li>
+<li>60分の上限は、隣で長く話され続けて flag が下がらないときの保険</li>
+</ol>
+
+<h2>音量の条件を足すと、合成音声では遠くの会話が flag から外れた</h2>
+<figure>
+<div class="wrap">
+<svg viewBox="0 0 880 250" role="img" aria-label="48秒の合成音声で、声の検知だけのときと、音量の条件を足したときの flag の区間">
+<text class="svg-s" x="10" y="20">合成した48秒の場面(雑音の上に、話しかけ→返事→遠くの会話)</text>
+<line x1="150" y1="200" x2="870" y2="200" stroke="var(--line)" stroke-width="1.5"/>
+<g class="svg-s" text-anchor="middle">
+<text x="150" y="222">0s</text><text x="300" y="222">10s</text><text x="449" y="222">20s</text><text x="599" y="222">30s</text><text x="748" y="222">40s</text>
+</g>
+<text class="svg-t" x="10" y="72">話した区間</text>
+<rect x="270" y="55" width="127" height="26" rx="4" fill="var(--fg)" opacity=".75"/>
+<rect x="472" y="55" width="87" height="26" rx="4" fill="var(--fg)" opacity=".75"/>
+<rect x="708" y="55" width="88" height="26" rx="4" fill="var(--fg)" opacity=".3"/>
+<text class="svg-s" x="334" y="48" text-anchor="middle">-25 dBFS</text>
+<text class="svg-s" x="516" y="48" text-anchor="middle">-23 dBFS</text>
+<text class="svg-s" x="752" y="48" text-anchor="middle">遠く -44 dBFS</text>
+<text class="svg-t" x="10" y="122">VAD だけ</text>
+<rect x="270" y="105" width="127" height="26" rx="4" fill="var(--accent)" opacity=".8"/>
+<rect x="472" y="105" width="87" height="26" rx="4" fill="var(--accent)" opacity=".8"/>
+<rect x="708" y="105" width="88" height="26" rx="4" fill="var(--accent)" opacity=".8"/>
+<text class="svg-t" x="10" y="172">VAD かつ音量</text>
+<rect x="270" y="155" width="127" height="26" rx="4" fill="var(--ok)" opacity=".8"/>
+<rect x="472" y="155" width="87" height="26" rx="4" fill="var(--ok)" opacity=".8"/>
+</svg>
+</div>
+<figcaption>しきい値 -35 dBFS で、近くの2つの発話だけに flag が立った。雑音は -49 dBFS</figcaption>
+</figure>
+<ol class="why">
+<li>音はすべて <code>say -v Kyoko</code> の合成音声と桃色雑音で、遠くの会話は音量を 0.12 倍にして作った。本物の席の音量ではまだ測っていない</li>
+<li>判定は1回あたり平均 0.075ms で、実時間の 0.23%(1スレッド)。flag が立ってから気づくまで約0.6秒で、3秒遡れば話し始めも落ちない</li>
+</ol>
+
+<h2>既定値は7つ。どれも設定で変えられ、音量のしきい値だけ仮</h2>
+<table>
+<thead><tr><th>項目</th><th>既定値</th><th>決め方</th></tr></thead>
+<tbody>
+<tr><td>flag の条件</td><td class="v">VAD ≥ 0.5 かつ ≥ -35 dBFS</td><td>-35 は合成音声での仮置き。席で測って決め直す</td></tr>
+<tr><td>録り始める長さ</td><td class="v">声が1秒続いたら</td><td>たまたま一瞬だけ flag が立っても録らないため。0.3秒までの切れ目は同じ発話として数える</td></tr>
+<tr><td>遡る長さ</td><td class="v">3秒</td><td>録り始めの判定に1秒かかっても話し始めが落ちない。最初の声から数え、メモリは30秒持つので延ばせる</td></tr>
+<tr><td>終わりの判定</td><td class="v">flag が5分下がり続けたら</td><td>考え込む間や離席で会話を割らない長さ</td></tr>
+<tr><td>渡すファイルの終わり</td><td class="v">最後の flag+5秒</td><td>無音を渡さないため</td></tr>
+<tr><td>1本の上限</td><td class="v">60分</td><td>隣の会話が続くときの保険</td></tr>
+<tr><td>終わったときのコマンド</td><td class="v">空(保存だけ)</td><td>空ならファイルを保存して終わる。何もしないアプリとしても使える</td></tr>
+</tbody>
+</table>
+
+<h2>配り方はサンドボックスの外にする。任意のコマンドを実行するため</h2>
+<ol class="why">
+<li>App Store で配るとサンドボックスが必須になり、任意のコマンドを実行できない。Developer ID で署名・公証して配る</li>
+<li>サンドボックスの中でも <code>NSUserUnixTask</code> なら <code>~/Library/Application Scripts/&lt;bundle id&gt;/</code> のスクリプトは動かせる。App Store に出したくなったら、この形に寄せる</li>
+<li>録音には相手の同意や職場のルールが関わる(会社が職場での録音を禁止できるとした判例もある: 東京地裁立川支部 平30.3.28)。使う人が確かめる前提で、README に書く</li>
+</ol>
+</main>
+</body>
+</html>
