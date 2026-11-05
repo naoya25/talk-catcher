@@ -30,6 +30,8 @@ final class CaptureStore {
   private static let recentLimit = 20
   private static let silentInputLimit: TimeInterval = 5
   private static let restartInterval: TimeInterval = 2
+  // 他のアプリがマイクを使っている間や、入力の切り替えの途中は開けない。空くまで間を空けて開き直す
+  private static let reopenInterval: TimeInterval = 5
 
   private(set) var state = CaptureState()
   private(set) var now = Date()
@@ -52,6 +54,7 @@ final class CaptureStore {
   @ObservationIgnored private var lastAudioAt = Date()
   @ObservationIgnored private var lastRestartAt = Date.distantPast
   @ObservationIgnored private var activeDeviceUID: String?
+  @ObservationIgnored private var microphoneFailedAt: Date?
 
   init(settings: SettingsStore) {
     self.settings = settings
@@ -171,13 +174,19 @@ final class CaptureStore {
       usingFallbackInput = wanted != nil && device == nil
       inputDeviceName = (device ?? InputDevices.systemDefault())?.name
       lastAudioAt = Date()
+      microphoneFailedAt = nil
       if !isListeningPhase { state.phase = .listening }
       log.notice(
         "聞き始めた: \(inputDeviceName ?? "不明なマイク")\(usingFallbackInput ? "(選んだマイクがつながっていないのでデフォルト)" : "")"
       )
     } catch {
-      log.error("マイクを開けなかった: \(error.localizedDescription)")
-      state.phase = .failed("マイクを開けなかった: \(error.localizedDescription)")
+      // 開き直すたびに書くと、マイクが空くまで5秒ごとにログが増える
+      if microphoneFailedAt == nil {
+        log.error("マイクを開けなかった: \(error.localizedDescription)")
+      }
+      microphoneFailedAt = Date()
+      state.phase = .failed(
+        "マイクを開けなかった。\(Int(Self.reopenInterval))秒おきに開き直している: \(error.localizedDescription)")
     }
   }
 
@@ -248,6 +257,11 @@ final class CaptureStore {
       refreshPhase()
       if isListeningPhase, now.timeIntervalSince(lastAudioAt) > Self.silentInputLimit {
         restartMicrophone(reason: "\(Int(Self.silentInputLimit))秒間マイクから音が来ない")
+      }
+      if case .failed = state.phase, let microphoneFailedAt,
+        now.timeIntervalSince(microphoneFailedAt) > Self.reopenInterval
+      {
+        listen()
       }
     }
   }
