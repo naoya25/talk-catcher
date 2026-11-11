@@ -11,6 +11,8 @@ struct MenuBarLabel: View {
       Image(systemName: "hourglass")
     case .paused, .noPermission:
       Image(systemName: "mic.slash")
+    case .quiet:
+      Image(systemName: "moon.zzz")
     case .failed:
       Image(systemName: "exclamationmark.triangle")
     case .starting, .listening:

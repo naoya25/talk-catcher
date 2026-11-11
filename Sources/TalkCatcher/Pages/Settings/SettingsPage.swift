@@ -8,6 +8,8 @@ struct SettingsPage: View {
         .tabItem { Label("コマンド", systemImage: "terminal") }
       ListeningTab()
         .tabItem { Label("聞き取り", systemImage: "waveform") }
+      QuietTab()
+        .tabItem { Label("録らない時間", systemImage: "moon.zzz") }
       GeneralTab()
         .tabItem { Label("一般", systemImage: "gearshape") }
     }
@@ -218,6 +220,106 @@ private struct LevelBar: View {
 
   private static func fraction(_ dbfs: Float) -> CGFloat {
     CGFloat(min(max((dbfs + 60) / 60, 0), 1))
+  }
+}
+
+private struct QuietTab: View {
+  @Environment(SettingsStore.self) private var settings
+  @Environment(CaptureStore.self) private var capture
+
+  var body: some View {
+    Form {
+      Section {
+        if case .quiet = capture.state.phase {
+          Text(capture.state.statusText(endSilence: settings.settings.capture.endSilenceSeconds))
+        }
+        Button("時間帯を足す") { add() }
+      } header: {
+        Text("この時間は録らない")
+      } footer: {
+        Text("この間はマイクを閉じる。録音中なら、そこまでを書き出してコマンドに渡す。終わりが始まりより前なら、次の日のその時刻まで続く")
+      }
+      ForEach(settings.settings.quiet.rules) { rule in
+        Section {
+          QuietRuleRows(rule: binding(for: rule.id)) { remove(rule.id) }
+        } header: {
+          Text(rule.summary)
+        }
+      }
+    }
+    .formStyle(.grouped)
+  }
+
+  private func add() {
+    settings.update {
+      $0.quiet.rules.append(
+        QuietRule(weekdays: Set(1...7), startMinute: 20 * 60, endMinute: 8 * 60))
+    }
+  }
+
+  private func remove(_ id: UUID) {
+    settings.update { $0.quiet.rules.removeAll { $0.id == id } }
+  }
+
+  private func binding(for id: UUID) -> Binding<QuietRule> {
+    Binding(
+      get: {
+        settings.settings.quiet.rules.first { $0.id == id }
+          ?? QuietRule(id: id, weekdays: [], startMinute: 0, endMinute: 0)
+      },
+      set: { value in
+        settings.update { next in
+          guard let index = next.quiet.rules.firstIndex(where: { $0.id == id }) else { return }
+          next.quiet.rules[index] = value
+        }
+      }
+    )
+  }
+}
+
+private struct QuietRuleRows: View {
+  @Binding var rule: QuietRule
+  let onRemove: () -> Void
+
+  var body: some View {
+    HStack(spacing: 4) {
+      ForEach(TimeText.weekdayOrder, id: \.self) { weekday in
+        Toggle(TimeText.weekdayName(weekday), isOn: day(weekday))
+          .toggleStyle(.button)
+      }
+      Spacer()
+      Button(role: .destructive, action: onRemove) {
+        Image(systemName: "trash")
+      }
+      .buttonStyle(.borderless)
+      .help("この時間帯を消す")
+    }
+    DatePicker("始まり", selection: time(\.startMinute), displayedComponents: .hourAndMinute)
+    DatePicker("終わり", selection: time(\.endMinute), displayedComponents: .hourAndMinute)
+  }
+
+  private func day(_ weekday: Int) -> Binding<Bool> {
+    Binding(
+      get: { rule.weekdays.contains(weekday) },
+      set: { on in
+        if on { rule.weekdays.insert(weekday) } else { rule.weekdays.remove(weekday) }
+      }
+    )
+  }
+
+  // DatePicker は Date しか扱えない。今日のその時刻に置き換えて渡し、時と分だけ戻す
+  private func time(_ keyPath: WritableKeyPath<QuietRule, Int>) -> Binding<Date> {
+    Binding(
+      get: {
+        let minute = rule[keyPath: keyPath]
+        return Calendar.current.date(
+          bySettingHour: minute / 60, minute: minute % 60, second: 0, of: Date()) ?? Date()
+      },
+      set: { date in
+        let components = Calendar.current.dateComponents([.hour, .minute], from: date)
+        rule[keyPath: keyPath] = (components.hour ?? 0) * 60 + (components.minute ?? 0)
+      }
+    )
   }
 }
 

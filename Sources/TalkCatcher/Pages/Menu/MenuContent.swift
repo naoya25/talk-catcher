@@ -81,9 +81,17 @@ private struct PauseItems: View {
   @Environment(CaptureStore.self) private var capture
 
   var body: some View {
-    if case .paused = capture.state.phase {
+    switch capture.state.phase {
+    case .paused:
       Button("再開する") { capture.resume() }
-    } else {
+    case .quiet(let until):
+      Button(until.map { "録らない時間を外して聞く(\(TimeText.dayClock($0)) まで)" } ?? "録らない時間を外して聞く") {
+        capture.ignoreQuiet()
+      }
+    default:
+      if capture.ignoringQuietUntil != nil {
+        Button("録らない時間に戻す") { Task { await capture.followQuiet() } }
+      }
       Button("15分止める") { Task { await capture.pause(minutes: 15) } }
       Button("1時間止める") { Task { await capture.pause(minutes: 60) } }
       Button("再開するまで止める") { Task { await capture.pause(minutes: nil) } }

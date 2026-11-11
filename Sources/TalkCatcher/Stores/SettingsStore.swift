@@ -3,13 +3,6 @@ import Observation
 import ServiceManagement
 import TalkCatcherCore
 
-struct AppSettings: Codable, Equatable {
-  var capture = CaptureSettings()
-  var command = ""
-  var inputDeviceUID: String?
-  var inputDeviceName: String?
-}
-
 @MainActor
 @Observable
 final class SettingsStore {

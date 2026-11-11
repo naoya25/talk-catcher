@@ -12,6 +12,8 @@ struct CaptureState: Equatable {
     case recording(since: Date)
     case waitingEnd(since: Date, lastVoiceAt: Date)
     case paused(until: Date?)
+    /// 設定の「録らない時間」に入っている。until は終わる時刻で、次の週まで終わらないなら nil
+    case quiet(until: Date?)
     case failed(String)
   }
 
@@ -40,6 +42,8 @@ final class CaptureStore {
   private(set) var voiced = false
   private(set) var inputDeviceName: String?
   private(set) var usingFallbackInput = false
+  /// メニューで「録らない時間」を外した。この時刻までは、録らない時間でも聞く
+  private(set) var ignoringQuietUntil: Date?
 
   @ObservationIgnored private let settings: SettingsStore
   @ObservationIgnored private let microphone = MicrophoneInput()
@@ -97,7 +101,7 @@ final class CaptureStore {
     ) { [weak self] _ in
       MainActor.assumeIsolated { self?.restartMicrophone(reason: "スリープから戻った") }
     }
-    listen()
+    listenUnlessQuiet()
   }
 
   func apply(_ next: AppSettings) {
@@ -126,7 +130,21 @@ final class CaptureStore {
   func resume() {
     resumeTask?.cancel()
     resumeTask = nil
+    listenUnlessQuiet()
+  }
+
+  /// 録らない時間の途中でも、その時間が終わるまで聞く
+  func ignoreQuiet() {
+    guard case .quiet(let until) = state.phase else { return }
+    ignoringQuietUntil = until ?? .distantFuture
+    log.notice("録らない時間を外した")
     listen()
+  }
+
+  /// 外した「録らない時間」を戻す
+  func followQuiet() async {
+    ignoringQuietUntil = nil
+    await followSchedule()
   }
 
   func cutNow() async {
@@ -187,6 +205,57 @@ final class CaptureStore {
       microphoneFailedAt = Date()
       state.phase = .failed(
         "マイクを開けなかった。\(Int(Self.reopenInterval))秒おきに開き直している: \(error.localizedDescription)")
+    }
+  }
+
+  private func isQuiet(at date: Date) -> Bool {
+    if let ignoringQuietUntil, date < ignoringQuietUntil { return false }
+    return settings.settings.quiet.contains(date)
+  }
+
+  private func listenUnlessQuiet() {
+    let date = Date()
+    if isQuiet(at: date) {
+      enterQuietPhase(at: date)
+    } else {
+      listen()
+    }
+  }
+
+  private func enterQuietPhase(at date: Date) {
+    let until = settings.settings.quiet.end(ofQuietAt: date)
+    state.phase = .quiet(until: until)
+    microphoneFailedAt = nil
+    log.notice("録らない時間に入った: \(until.map { "\(TimeText.dayClock($0)) まで" } ?? "次の週まで続く")")
+  }
+
+  /// 録らない時間に入ったらマイクを閉じ、抜けたら聞き始める。毎秒呼ぶ
+  private func followSchedule() async {
+    if let ignoringQuietUntil, now >= ignoringQuietUntil { self.ignoringQuietUntil = nil }
+    let quiet = isQuiet(at: now)
+    switch state.phase {
+    case .listening, .recording, .waitingEnd:
+      guard quiet else { return }
+      // 先に状態を変える。止めるのを待つ間に、ほかの処理が「聞いている」と見てマイクを開き直さないように
+      enterQuietPhase(at: now)
+      await stopListening(reason: .stopped)
+    case .failed:
+      // マイクを開き直している途中だけ。声の判定を準備できなかったときは、抜けても聞けない
+      guard quiet, microphoneFailedAt != nil else { return }
+      enterQuietPhase(at: now)
+    case .quiet(let until):
+      if !quiet {
+        // 準備の途中なら、準備が終わったところで聞き始める。ここで開くと毎秒ログが増える
+        guard pipeline != nil else { return }
+        log.notice("録らない時間が終わった")
+        listen()
+        return
+      }
+      // 録らない時間の途中で設定を変えたら、終わる時刻を出し直す
+      let next = settings.settings.quiet.end(ofQuietAt: now)
+      if next != until { state.phase = .quiet(until: next) }
+    case .starting, .noPermission, .paused:
+      return
     }
   }
 
@@ -254,6 +323,7 @@ final class CaptureStore {
     while !Task.isCancelled {
       try? await Task.sleep(for: .seconds(1))
       now = Date()
+      await followSchedule()
       refreshPhase()
       if isListeningPhase, now.timeIntervalSince(lastAudioAt) > Self.silentInputLimit {
         restartMicrophone(reason: "\(Int(Self.silentInputLimit))秒間マイクから音が来ない")
