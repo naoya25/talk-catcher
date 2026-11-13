@@ -99,3 +99,37 @@ func cutKeepsListeningWithoutOverlap() async throws {
   let second = try #require(await firstRecording(pipeline))
   #expect(second.startedAt >= first.endedAt)
 }
+
+@Test("録音中に区切りを出し、録音が切れたら区切りの終わりを知らせてから録音を返す")
+func emitsSegmentsWhileRecording() async throws {
+  let directory = try temporaryDirectory()
+  var settings = shortSettings
+  settings.segmentSeconds = 2
+  settings.overlapSeconds = 0.5
+  let pipeline = try CapturePipeline(settings: settings, directory: directory) {
+    LoudIsVoice()
+  }
+  await pipeline.process(tone(seconds: 3, amplitude: 0.001))
+  await pipeline.process(tone(seconds: 5, amplitude: 0.3))
+  await pipeline.process(tone(seconds: 3, amplitude: 0.001))
+
+  var segments: [AudioSegment] = []
+  var ended: String?
+  for await event in pipeline.events {
+    switch event {
+    case .segment(let segment): segments.append(segment)
+    case .segmentsEnded(let id): ended = id
+    case .recorded(let recording):
+      #expect(ended == recording.url.deletingPathExtension().lastPathComponent)
+      #expect(segments.allSatisfy { $0.recordingID == ended })
+      // 声は録音の 1〜6秒。2秒ごとに0.5秒重ねて区切ると、声を含む区切りは4つ。
+      // 4つ目(5.5〜8秒)は黙っている間に切れるので、録音の終わり(6.5秒)より後の無音も入る
+      #expect(segments.map(\.number) == [1, 2, 3, 4])
+      #expect(segments.map(\.startSeconds) == [0, 1.5, 3.5, 5.5])
+      #expect((segments.last?.endSeconds ?? 0) >= 6.5)
+      return
+    default: continue
+    }
+  }
+  Issue.record("録音が返ってこなかった")
+}

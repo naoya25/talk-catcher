@@ -50,6 +50,15 @@ final class CaptureStore {
   @ObservationIgnored private let queue = HandoffQueue(log: HookLog(url: Paths.hookLog))
   @ObservationIgnored private let log = AppLog(url: Paths.appLog)
   @ObservationIgnored private var pipeline: CapturePipeline?
+  @ObservationIgnored private lazy var transcriber = Transcriber(
+    chunksDirectory: Paths.chunks, transcriptsDirectory: Paths.transcripts,
+    config: Self.transcriberConfig(settings.settings),
+    report: { [log] outcome in
+      switch outcome {
+      case .written(let url): log.notice("文字にした: \(url.path)")
+      case .failed(let message): log.error(message)
+      }
+    })
   @ObservationIgnored private var pipelinePhase: CapturePipeline.Phase = .idle
   @ObservationIgnored private var listenTask: Task<Void, Never>?
   @ObservationIgnored private var resumeTask: Task<Void, Never>?
@@ -107,6 +116,7 @@ final class CaptureStore {
   func apply(_ next: AppSettings) {
     Task {
       await pipeline?.update(settings: next.capture)
+      await transcriber.update(config: Self.transcriberConfig(next))
       await queue.set(command: next.command)
     }
     if next.inputDeviceUID != activeDeviceUID {
@@ -303,8 +313,21 @@ final class CaptureStore {
       case .failed(let message):
         log.error(message)
         state.lastError = message
+      case .segment(let segment):
+        guard settings.settings.transcribe else { continue }
+        await transcriber.submit(segment)
+      case .segmentsEnded(let recordingID):
+        await transcriber.end(recordingID: recordingID)
       }
     }
+  }
+
+  private static func transcriberConfig(_ settings: AppSettings) -> Transcriber.Config {
+    Transcriber.Config(
+      whisperPath: settings.whisperPath,
+      modelPath: settings.whisperModelPath.isEmpty
+        ? Paths.defaultWhisperModel.path : settings.whisperModelPath,
+      language: settings.whisperLanguage)
   }
 
   private func watchQueue() async {

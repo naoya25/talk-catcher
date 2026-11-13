@@ -15,6 +15,10 @@ public actor CapturePipeline {
   public enum Event: Sendable {
     case status(Status)
     case recorded(Recording)
+    /// 録音中に区切った音声。文字にするのは受け取った側
+    case segment(AudioSegment)
+    /// この録音の区切りはもう来ない
+    case segmentsEnded(recordingID: String)
     case failed(String)
   }
 
@@ -33,6 +37,7 @@ public actor CapturePipeline {
   private var origin: Date?
   private var writer: RecordingWriter?
   private var writerStartChunk = 0
+  private var cutter: SegmentCutter?
   private var earliestStartChunk = 0
   private var lastPhase: Phase = .idle
 
@@ -79,6 +84,7 @@ public actor CapturePipeline {
     let recording = cut(reason: reason)
     writer?.discard()
     writer = nil
+    endSegments()
     pending = []
     ring = []
     nextChunk = 0
@@ -99,7 +105,7 @@ public actor CapturePipeline {
     let probability = (try? detector.probability(of: chunk)) ?? 0
     let voiced = probability >= settings.speechProbability && level >= settings.minDBFS
 
-    if writer != nil { append(chunk) }
+    if writer != nil { append(chunk, voiced: voiced) }
     for action in machine.feed(chunk: index, voiced: voiced) {
       apply(action)
     }
@@ -123,19 +129,31 @@ public actor CapturePipeline {
       let writer = try RecordingWriter(partialURL: partial)
       let buffered = ring.filter { $0.index >= fromChunk }
       writerStartChunk = buffered.first?.index ?? nextChunk
-      for entry in buffered { try writer.append(entry.samples) }
+      var cutter = SegmentCutter(
+        recordingID: String(Self.fileName(for: time(ofChunk: writerStartChunk)).dropLast(4)),
+        segmentSeconds: settings.segmentSeconds, overlapSeconds: settings.overlapSeconds)
+      for entry in buffered {
+        try writer.append(entry.samples)
+        // 録音の頭(preroll)は、声を検知して録音を始めた直前の音なので声として数える
+        _ = cutter.feed(entry.samples, voiced: true)
+      }
       self.writer = writer
+      self.cutter = cutter
     } catch {
       continuation.yield(.failed("録音を始められなかった: \(error.localizedDescription)"))
     }
   }
 
-  private func append(_ chunk: [Float]) {
+  private func append(_ chunk: [Float], voiced: Bool) {
     do {
       try writer?.append(chunk)
+      for segment in cutter?.feed(chunk, voiced: voiced) ?? [] {
+        continuation.yield(.segment(segment))
+      }
     } catch {
       writer?.discard()
       writer = nil
+      endSegments()
       continuation.yield(.failed("録音の書き込みに失敗した: \(error.localizedDescription)"))
     }
   }
@@ -151,12 +169,23 @@ public actor CapturePipeline {
         AVAudioFramePosition(endChunk - writerStartChunk)
         * AVAudioFramePosition(AudioFormat.chunkSize)
       try writer.finish(keepingFrames: frames, to: url)
+      if let last = cutter?.finish(endFrame: Int(frames)) {
+        continuation.yield(.segment(last))
+      }
+      endSegments()
       return Recording(url: url, startedAt: startedAt, endedAt: endedAt, reason: reason)
     } catch {
       writer.discard()
+      endSegments()
       continuation.yield(.failed("録音を書き出せなかった: \(error.localizedDescription)"))
       return nil
     }
+  }
+
+  private func endSegments() {
+    guard let cutter else { return }
+    self.cutter = nil
+    continuation.yield(.segmentsEnded(recordingID: cutter.recordingID))
   }
 
   private func publishStatus(level: Float, voiced: Bool, force: Bool) {

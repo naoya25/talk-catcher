@@ -163,6 +163,19 @@ private struct ListeningTab: View {
           ForEach([1800.0, 3600, 7200], id: \.self) { Text("\(Int($0) / 60)分").tag($0) }
         }
       }
+      Section {
+        Toggle("録音中に文字にする", isOn: transcribe)
+        Picker("区切る長さ", selection: capture(\.segmentSeconds)) {
+          ForEach([30.0, 60, 120, 300], id: \.self) { Text("\($0.formatted())秒ごと").tag($0) }
+        }
+        Picker("前と重ねる長さ", selection: capture(\.overlapSeconds)) {
+          ForEach([0.0, 5, 10, 20], id: \.self) { Text("\(Int($0))秒").tag($0) }
+        }
+        Text("文字は \(Paths.transcripts.path)/<録音>/0001.txt に置く。区切った音声は文字にしたら消える")
+          .font(.caption).foregroundStyle(.secondary)
+      } header: {
+        Text("リアルタイムの文字起こし(whisper.cpp)")
+      }
     }
     .formStyle(.grouped)
     .task { devices = InputDevices.all() }
@@ -184,6 +197,13 @@ private struct ListeningTab: View {
     Binding(
       get: { Double(settings.settings.capture.minDBFS) },
       set: { value in settings.update { $0.capture.minDBFS = Float(value) } }
+    )
+  }
+
+  private var transcribe: Binding<Bool> {
+    Binding(
+      get: { settings.settings.transcribe },
+      set: { value in settings.update { $0.transcribe = value } }
     )
   }
 
@@ -336,6 +356,7 @@ private struct GeneralTab: View {
       }
       Section("保存先") {
         LabeledContent("録音", value: Paths.recordings.path)
+        LabeledContent("文字", value: Paths.transcripts.path)
         LabeledContent("ログ", value: Paths.hookLog.path)
         Button("録音フォルダを開く") { NSWorkspace.shared.open(Paths.recordings) }
       }

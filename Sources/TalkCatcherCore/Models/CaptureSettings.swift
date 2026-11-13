@@ -8,6 +8,10 @@ public struct CaptureSettings: Codable, Sendable, Equatable {
   public var endSilenceSeconds: Double = 300
   public var tailSeconds: Double = 5
   public var maxLengthSeconds: Double = 3600
+  /// 録音中に、この秒数ごとに区切って文字にする
+  public var segmentSeconds: Double = 60
+  /// 区切りの境目で言葉が切れないよう、前の区切りの終わりをこの秒数だけ重ねる
+  public var overlapSeconds: Double = 10
 
   public init() {}
 
@@ -32,6 +36,10 @@ public struct CaptureSettings: Codable, Sendable, Equatable {
     maxLengthSeconds =
       try container.decodeIfPresent(Double.self, forKey: .maxLengthSeconds)
       ?? fallback.maxLengthSeconds
+    segmentSeconds =
+      try container.decodeIfPresent(Double.self, forKey: .segmentSeconds) ?? fallback.segmentSeconds
+    overlapSeconds =
+      try container.decodeIfPresent(Double.self, forKey: .overlapSeconds) ?? fallback.overlapSeconds
   }
 }
 
