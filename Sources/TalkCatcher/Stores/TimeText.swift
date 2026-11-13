@@ -45,20 +45,31 @@ extension QuietRule {
 }
 
 extension CaptureState {
-  func statusText(endSilence: TimeInterval) -> String {
+  /// 録音中は、いつから録っているかと、いつ区切る予定かを出す
+  func statusText(endSilence: TimeInterval, maxLength: TimeInterval) -> String {
     switch phase {
     case .starting: "準備中"
     case .noPermission: "マイクを使えない — システム設定で許可して"
     case .listening: "待機中 — 声を待ってる"
     case .recording(let since):
-      "録音中 — \(TimeText.clock(since)) から"
-    case .waitingEnd(_, let lastVoiceAt):
-      "終わり待ち — \(TimeText.clock(lastVoiceAt.addingTimeInterval(endSilence))) まで黙っていたら区切る"
+      "録音中 — \(TimeText.clock(since)) から・長くても \(TimeText.clock(since.addingTimeInterval(maxLength))) に区切る"
+    case .waitingEnd(let since, let lastVoiceAt):
+      Self.waitingEndText(
+        since: since, silenceEnd: lastVoiceAt.addingTimeInterval(endSilence),
+        lengthEnd: since.addingTimeInterval(maxLength))
     case .paused(let until): until.map { "一時停止中 — \(TimeText.clock($0)) まで" } ?? "一時停止中 — 再開するまで"
     case .quiet(let until):
       until.map { "録らない時間 — \(TimeText.dayClock($0)) まで" } ?? "録らない時間 — 次の週まで続く"
     case .failed(let message): message
     }
+  }
+
+  /// 黙ったまま区切る時刻と、長さの上限で区切る時刻の、早いほうを出す
+  static func waitingEndText(since: Date, silenceEnd: Date, lengthEnd: Date) -> String {
+    let head = "終わり待ち — \(TimeText.clock(since)) から・"
+    return silenceEnd < lengthEnd
+      ? head + "\(TimeText.clock(silenceEnd)) まで黙っていたら区切る"
+      : head + "\(TimeText.clock(lengthEnd)) に区切る(長さの上限)"
   }
 }
 

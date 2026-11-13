@@ -8,7 +8,9 @@ struct MenuContent: View {
 
   var body: some View {
     Text(
-      capture.state.statusText(endSilence: settings.settings.capture.endSilenceSeconds))
+      capture.state.statusText(
+        endSilence: settings.settings.capture.endSilenceSeconds,
+        maxLength: settings.settings.capture.maxLengthSeconds))
     if let error = capture.state.lastError {
       Text(error)
     }

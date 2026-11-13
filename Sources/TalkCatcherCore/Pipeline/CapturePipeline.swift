@@ -34,7 +34,12 @@ public actor CapturePipeline {
   private var pending: [Float] = []
   private var ring: [(index: Int, samples: [Float])] = []
   private var nextChunk = 0
-  private var origin: Date?
+  /// chunk の番号を時刻に直す基準。音が来ない間(スリープ・マイクの開き直し)があると、
+  /// 受け取った音の長さだけでは実際の時刻に追いつかないので、そのたびに基準を足す
+  private var anchors: [(chunk: Int, date: Date)] = []
+  private let clock: @Sendable () -> Date
+  /// 音の時刻が実際の時刻よりこれ以上遅れていたら、音が途切れたとみなす
+  static let gapTolerance: TimeInterval = 2
   private var writer: RecordingWriter?
   private var writerStartChunk = 0
   private var cutter: SegmentCutter?
@@ -44,10 +49,12 @@ public actor CapturePipeline {
   public init(
     settings: CaptureSettings,
     directory: URL,
+    clock: @escaping @Sendable () -> Date = Date.init,
     makeDetector: @Sendable () throws -> any VoiceDetector
   ) throws {
     self.settings = settings
     self.directory = directory
+    self.clock = clock
     machine = SessionMachine(config: .init(settings: settings))
     detector = try makeDetector()
     (events, continuation) = AsyncStream.makeStream(of: Event.self)
@@ -59,7 +66,7 @@ public actor CapturePipeline {
   }
 
   public func process(_ samples: [Float]) {
-    if origin == nil { origin = Date() }
+    anchorIfBehind(arriving: samples.count)
     pending += samples
     while pending.count >= AudioFormat.chunkSize {
       let chunk = Array(pending.prefix(AudioFormat.chunkSize))
@@ -89,7 +96,7 @@ public actor CapturePipeline {
     ring = []
     nextChunk = 0
     earliestStartChunk = 0
-    origin = nil
+    anchors = []
     detector.reset()
     publishStatus(level: AudioLevel.floor, voiced: false, force: true)
     return recording
@@ -200,8 +207,25 @@ public actor CapturePipeline {
     continuation.yield(.status(Status(phase: phase, level: level, voiced: voiced)))
   }
 
-  private func time(ofChunk index: Int) -> Date {
-    (origin ?? Date()).addingTimeInterval(Double(index) * AudioFormat.chunkSeconds)
+  /// 届いた音の終わりは「今」のはず。数えた時刻がそれより遅れていたら、次の chunk から今に合わせる
+  private func anchorIfBehind(arriving count: Int) {
+    let now = clock()
+    let buffered = Double(pending.count + count) / AudioFormat.sampleRate
+    let startOfNext = now.addingTimeInterval(-buffered)
+    guard !anchors.isEmpty else {
+      anchors = [(nextChunk, startOfNext)]
+      return
+    }
+    if startOfNext.timeIntervalSince(time(ofChunk: nextChunk)) > Self.gapTolerance {
+      anchors.append((nextChunk, startOfNext))
+    }
+  }
+
+  func time(ofChunk index: Int) -> Date {
+    guard let anchor = anchors.last(where: { $0.chunk <= index }) ?? anchors.first else {
+      return clock()
+    }
+    return anchor.date.addingTimeInterval(Double(index - anchor.chunk) * AudioFormat.chunkSeconds)
   }
 
   static func fileName(for date: Date) -> String {

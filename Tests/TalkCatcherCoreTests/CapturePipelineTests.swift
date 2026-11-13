@@ -133,3 +133,30 @@ func emitsSegmentsWhileRecording() async throws {
   }
   Issue.record("録音が返ってこなかった")
 }
+
+/// テストから進められる時計
+private final class StepClock: @unchecked Sendable {
+  var date = Date(timeIntervalSince1970: 1_000_000)
+}
+
+@Test("音が途切れた後の時刻は、受け取った音の長さでなく実際の時刻に合う")
+func timeFollowsWallClockAfterGap() async throws {
+  let clock = StepClock()
+  let pipeline = try CapturePipeline(
+    settings: shortSettings, directory: try temporaryDirectory(), clock: { clock.date }
+  ) { LoudIsVoice() }
+  let start = clock.date
+
+  clock.date = start.addingTimeInterval(1)
+  await pipeline.process(tone(seconds: 1, amplitude: 0.001))
+  // スリープで40分音が来なかった
+  clock.date = start.addingTimeInterval(1 + 2400 + 1)
+  await pipeline.process(tone(seconds: 1, amplitude: 0.001))
+
+  let lastChunk = AudioFormat.chunks(forSeconds: 2) - 1
+  let time = await pipeline.time(ofChunk: lastChunk)
+  #expect(abs(time.timeIntervalSince(clock.date)) < 0.2)
+  // 途切れる前の音の時刻は動かない
+  let first = await pipeline.time(ofChunk: 0)
+  #expect(abs(first.timeIntervalSince(start)) < 0.1)
+}

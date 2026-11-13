@@ -251,7 +251,9 @@ private struct QuietTab: View {
     Form {
       Section {
         if case .quiet = capture.state.phase {
-          Text(capture.state.statusText(endSilence: settings.settings.capture.endSilenceSeconds))
+          Text(capture.state.statusText(
+        endSilence: settings.settings.capture.endSilenceSeconds,
+        maxLength: settings.settings.capture.maxLengthSeconds))
         }
         Button("時間帯を足す") { add() }
       } header: {
